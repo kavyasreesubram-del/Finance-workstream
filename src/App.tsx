@@ -1070,34 +1070,25 @@ Dear Quantum billing, our automated 3-way check detected that only 7 units of Co
 
                   {/* Table — horizontally scrollable, Invoice ID column frozen */}
                   <div className="overflow-x-auto">
-                    <table className="text-left border-collapse" style={{minWidth: payablesQueueTab === 'review_required' ? '1380px' : '1200px'}}>
+                    <table className="text-left border-collapse" style={{minWidth: '2000px'}}>
                       <thead>
                         <tr className="border-b border-slate-200 bg-slate-50 text-slate-500 text-[10px] uppercase tracking-wider font-semibold">
                           <th className="px-4 py-3 sticky left-0 z-20 bg-slate-50 border-r border-slate-200 whitespace-nowrap">Invoice ID #</th>
-                          {payablesQueueTab === 'review_required' ? (
-                            <>
-                              <th className="px-4 py-3 whitespace-nowrap">Supplier Name</th>
-                              <th className="px-4 py-3 text-right whitespace-nowrap">Amount</th>
-                              <th className="px-4 py-3 whitespace-nowrap">AI Rec.</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Approval Status</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Dispute Reason</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Purchase Type</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Payment Status</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Prioritization Score</th>
-                              <th className="px-4 py-3 text-center whitespace-nowrap">Review</th>
-                            </>
-                          ) : (
-                            <>
-                              <th className="px-4 py-3 whitespace-nowrap">Supplier Name</th>
-                              <th className="px-4 py-3 whitespace-nowrap">PO Number</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Invoice Date</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Posting Date</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Payment Term</th>
-                              <th className="px-4 py-3 whitespace-nowrap">SLA</th>
-                              <th className="px-4 py-3 whitespace-nowrap">Payer Name</th>
-                              <th className="px-4 py-3 text-center whitespace-nowrap">Review</th>
-                            </>
-                          )}
+                          <th className="px-4 py-3 whitespace-nowrap">Supplier Name</th>
+                          <th className="px-4 py-3 whitespace-nowrap">PO Number</th>
+                          <th className="px-4 py-3 whitespace-nowrap">Invoice Date</th>
+                          <th className="px-4 py-3 whitespace-nowrap">Posting Date</th>
+                          <th className="px-4 py-3 whitespace-nowrap">Payment Term</th>
+                          <th className="px-4 py-3 whitespace-nowrap">SLA</th>
+                          <th className="px-4 py-3 whitespace-nowrap">Payer Name</th>
+                          <th className="px-4 py-3 text-right whitespace-nowrap">Amount</th>
+                          <th className="px-4 py-3 whitespace-nowrap">Purchase Type</th>
+                          <th className="px-4 py-3 whitespace-nowrap">Payment Status</th>
+                          <th className="px-4 py-3 whitespace-nowrap">AI Rec.</th>
+                          <th className="px-4 py-3 whitespace-nowrap">Approval Status</th>
+                          <th className="px-4 py-3 whitespace-nowrap">Dispute Reason</th>
+                          <th className="px-4 py-3 whitespace-nowrap">Prioritization Score</th>
+                          <th className="px-4 py-3 text-center whitespace-nowrap">Review</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 text-xs text-slate-600">
@@ -1132,74 +1123,17 @@ Dear Quantum billing, our automated 3-way check detected that only 7 units of Co
                             };
                             const sla = getSla();
 
-                            if (payablesQueueTab === 'review_required') {
-                              const aiRecLabel = code === 'DUPLICATE' ? 'REVIEW DISC.' : code !== 'CLEAN' ? 'FLAG REJECTION' : 'REC. APPROVAL';
-                              const aiRecColor = code === 'DUPLICATE' ? 'bg-amber-50 text-amber-700 border-amber-200' : code !== 'CLEAN' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                              const barColor = code === 'DUPLICATE' ? 'bg-amber-500' : code !== 'CLEAN' ? 'bg-rose-500' : 'bg-emerald-500';
-                              const approvalStatus = code === 'CLEAN' ? 'APPROVED' : code === 'DUPLICATE' ? 'PARKED' : 'BLOCKED';
-                              const approvalColor = approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : approvalStatus === 'PARKED' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-rose-50 text-rose-700 border-rose-200';
-                              const approvalDot = approvalStatus === 'APPROVED' ? 'bg-emerald-500' : approvalStatus === 'PARKED' ? 'bg-slate-400' : 'bg-rose-500';
-                              const disputeLabel: Record<string, string> = {
-                                CLEAN: '—', PRICE_VARIANCE: 'Price variance', QTY_VARIANCE: 'Quantity variance',
-                                GRN_MISSING: 'GR missing', PO_MISSING: 'PO missing', DUPLICATE: 'Duplicate invoice',
-                                TAX_ERROR: 'Tax error', CONTRACT_VIOLATION: 'Contract violation',
-                              };
-                              return (
-                                <tr key={item.id} className="group hover:bg-slate-50/60 transition-all">
-                                  <td className="px-4 py-3 sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 font-bold text-[#E87722] font-mono text-[11px] max-w-[200px]">
-                                    <span className="block truncate" title={item.id}>{item.id}</span>
-                                  </td>
-                                  <td className="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">{item.vendorName || '—'}</td>
-                                  <td className="px-4 py-3 text-right text-slate-900 font-bold font-mono whitespace-nowrap">${(item.amount ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                                  <td className="px-4 py-3">
-                                    <div className="flex flex-col gap-1 min-w-[130px]">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${aiRecColor}`}>{aiRecLabel}</span>
-                                        <span className="text-[10px] font-bold text-slate-700">{conf}%</span>
-                                      </div>
-                                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className={`h-full rounded-full ${barColor}`} style={{width: `${conf}%`}} />
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border inline-flex items-center gap-1 whitespace-nowrap ${approvalColor}`}>
-                                      <span className={`h-1.5 w-1.5 rounded-full ${approvalDot}`}></span>
-                                      {approvalStatus}
-                                    </span>
-                                  </td>
-                                  <td className="px-4 py-3 text-slate-500 italic whitespace-nowrap">{disputeLabel[code] || '—'}</td>
-                                  <td className="px-4 py-3">
-                                    <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded uppercase tracking-wide whitespace-nowrap">{item.purchaseType || 'Goods'}</span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    {isOverdue ? (
-                                      <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded whitespace-nowrap">OVERDUE</span>
-                                    ) : (
-                                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded whitespace-nowrap">NOT YET DUE</span>
-                                    )}
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <div className="flex items-center gap-2 min-w-[100px]">
-                                      <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-[#E87722] rounded-full" style={{width: `${score}%`}} />
-                                      </div>
-                                      <span className="text-xs font-bold text-slate-700 w-6 text-right shrink-0">{score}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 text-center">
-                                    <button
-                                      onClick={() => { setSelectedPayablesInvoiceId(item.id); setPayablesView('review'); }}
-                                      className="bg-[#404040] hover:bg-[#2d2d2d] text-white font-bold text-xs px-4 py-1.5 rounded cursor-pointer transition-all whitespace-nowrap"
-                                    >
-                                      Review
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            }
-
-                            // History tab row — metadata-focused columns
+                            const aiRecLabel = code === 'DUPLICATE' ? 'REVIEW DISC.' : code !== 'CLEAN' ? 'FLAG REJECTION' : 'REC. APPROVAL';
+                            const aiRecColor = code === 'DUPLICATE' ? 'bg-amber-50 text-amber-700 border-amber-200' : code !== 'CLEAN' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                            const barColor = code === 'DUPLICATE' ? 'bg-amber-500' : code !== 'CLEAN' ? 'bg-rose-500' : 'bg-emerald-500';
+                            const approvalStatus = code === 'CLEAN' ? 'APPROVED' : code === 'DUPLICATE' ? 'PARKED' : 'BLOCKED';
+                            const approvalColor = approvalStatus === 'APPROVED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : approvalStatus === 'PARKED' ? 'bg-slate-100 text-slate-600 border-slate-200' : 'bg-rose-50 text-rose-700 border-rose-200';
+                            const approvalDot = approvalStatus === 'APPROVED' ? 'bg-emerald-500' : approvalStatus === 'PARKED' ? 'bg-slate-400' : 'bg-rose-500';
+                            const disputeLabel: Record<string, string> = {
+                              CLEAN: '—', PRICE_VARIANCE: 'Price variance', QTY_VARIANCE: 'Quantity variance',
+                              GRN_MISSING: 'GR missing', PO_MISSING: 'PO missing', DUPLICATE: 'Duplicate invoice',
+                              TAX_ERROR: 'Tax error', CONTRACT_VIOLATION: 'Contract violation',
+                            };
                             return (
                               <tr key={item.id} className="group hover:bg-slate-50/60 transition-all">
                                 <td className="px-4 py-3 sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100 font-bold text-[#E87722] font-mono text-[11px] max-w-[200px]">
@@ -1216,6 +1150,43 @@ Dear Quantum billing, our automated 3-way check detected that only 7 units of Co
                                   </span>
                                 </td>
                                 <td className="px-4 py-3 text-slate-500 text-[11px] whitespace-nowrap">{item.payerName || '—'}</td>
+                                <td className="px-4 py-3 text-right text-slate-900 font-bold font-mono whitespace-nowrap">${(item.amount ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                                <td className="px-4 py-3">
+                                  <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded uppercase tracking-wide whitespace-nowrap">{item.purchaseType || 'Goods'}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  {isOverdue ? (
+                                    <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded whitespace-nowrap">OVERDUE</span>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded whitespace-nowrap">NOT YET DUE</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="flex flex-col gap-1 min-w-[130px]">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${aiRecColor}`}>{aiRecLabel}</span>
+                                      <span className="text-[10px] font-bold text-slate-700">{conf}%</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                      <div className={`h-full rounded-full ${barColor}`} style={{width: `${conf}%`}} />
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border inline-flex items-center gap-1 whitespace-nowrap ${approvalColor}`}>
+                                    <span className={`h-1.5 w-1.5 rounded-full ${approvalDot}`}></span>
+                                    {approvalStatus}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3 text-slate-500 italic whitespace-nowrap">{disputeLabel[code] || '—'}</td>
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2 min-w-[100px]">
+                                    <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                      <div className="h-full bg-[#E87722] rounded-full" style={{width: `${score}%`}} />
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-700 w-6 text-right shrink-0">{score}</span>
+                                  </div>
+                                </td>
                                 <td className="px-4 py-3 text-center">
                                   <button
                                     onClick={() => { setSelectedPayablesInvoiceId(item.id); setPayablesView('review'); }}
@@ -1233,7 +1204,7 @@ Dear Quantum billing, our automated 3-way check detected that only 7 units of Co
                             : (i.exceptionCode || 'CLEAN') === 'CLEAN'
                         ).length === 0 && (
                           <tr>
-                            <td colSpan={payablesQueueTab === 'review_required' ? 10 : 9} className="py-12 text-center text-slate-400 italic">
+                            <td colSpan={16} className="py-12 text-center text-slate-400 italic">
                               {payablesQueueTab === 'history' ? 'No clean/approved invoices yet.' : 'No items pending review.'}
                             </td>
                           </tr>
