@@ -1,0 +1,8 @@
+{
+  "name": "Remix: FinFlow · Transaction Execution 08-jun",
+  "description": "An AI-powered Transaction Execution Assistant orchestrating Payables, Approval, and Reconciliation agents across the End-to-End P2P cycle.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
