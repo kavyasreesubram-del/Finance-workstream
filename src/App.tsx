@@ -27,13 +27,13 @@ import {
 import { INITIAL_TRANSACTIONS, RECENT_LEDGER_ITEMS, VENDOR_PRESETS } from './data';
 import { Transaction, AuditLog, StageType, ChatMessage, LedgerItem, ExceptionCode } from './types';
 import { useStore } from './store';
-import UploadDrawer from './components/UploadDrawer';
+import { UploadPanel, INVOICE_COLS, PO_COLS, GR_COLS, coerceInvoice, coercePO, coerceGR } from './components/UploadDrawer';
 import InsightsPanel from './components/InsightsPanel';
 import CoreFinanceTriad from './components/CoreFinanceTriad';
 
 export default function App() {
   // Navigation & View States
-  const [appView, setAppView] = useState<'landing' | 'dashboard' | 'workflow' | 'triad'>('landing');
+  const [appView, setAppView] = useState<'landing' | 'dashboard' | 'workflow' | 'triad' | 'ingestion'>('landing');
   const [activeTab, setActiveTab] = useState<'payables' | 'approval' | 'reconciliation'>('payables');
   const [payablesView, setPayablesView] = useState<'queue' | 'review'>('queue');
   
@@ -62,7 +62,7 @@ export default function App() {
   const [ledger, setLedger] = useState<LedgerItem[]>(RECENT_LEDGER_ITEMS);
 
   // Store — uploaded invoices + live match results
-  const { matchResults } = useStore();
+  const { matchResults, uploadedInvoices, purchaseOrders, goodsReceipts, vendors, appendInvoices, appendPOs, appendGRs, resetToSeed } = useStore();
 
   // Tab 1 (Payables) Filters state
   const [filterPurchaseType, setFilterPurchaseType] = useState<string>('All');
@@ -99,6 +99,12 @@ export default function App() {
   const [uploadedFiles, setUploadedFiles] = useState<{name: string, type: 'Invoice' | 'PO' | 'GR' | null}[]>([]);
   const [uploadScenario, setUploadScenario] = useState<'clean' | 'mismatch'>('clean');
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+
+  // Ingestion view state
+  const [ingestionTab, setIngestionTab] = useState<'bulk_csv' | 'auto_extract'>('bulk_csv');
+  const [autoExtractSource, setAutoExtractSource] = useState<string | null>(null);
+  const [autoExtractForm, setAutoExtractForm] = useState({ supplier: '', amount: '', date: '', primarySku: '', shortDescription: '' });
+  const [autoExtractSubmitted, setAutoExtractSubmitted] = useState(false);
 
   // Suggested solutions drawer state
   const [suggestedDraftMsg, setSuggestedDraftMsg] = useState<string | null>(null);
@@ -423,7 +429,7 @@ Dear Quantum billing, our automated 3-way check detected that only 7 units of Co
     postingDate: r.invoice.postingDate,
     paymentTerm: r.invoice.paymentTerm,
     purchaseType: r.invoice.purchaseType,
-    payerName: r.invoice.vendor_code,
+    payerName: r.invoice.payerName || r.invoice.vendor_code,
     aiConfidence: r.confidence,
     exceptionCode: r.exceptionCode,
     exceptionLabel: EXCEPTION_LABELS[r.exceptionCode],
@@ -810,6 +816,289 @@ Dear Quantum billing, our automated 3-way check detected that only 7 units of Co
     );
   }
 
+  // ── Ingestion View ─────────────────────────────────────────────────
+  if (appView === 'ingestion') {
+    const autoExtractSources = [
+      { id: 'supplier_portal', label: 'Supplier Portal Sync', desc: 'Sync from Enterprise Supplier Hub', icon: <Database size={20} /> },
+      { id: 'inbox', label: 'Connect to Supplier Inbox', desc: 'Sync invoices from dedicated inbox', icon: <Mail size={20} /> },
+      { id: 'edi', label: 'EDI Sync', desc: 'Link EDI 810 transactions', icon: <RefreshCw size={20} /> },
+    ];
+
+    const handleAutoExtractSubmit = () => {
+      if (!autoExtractForm.supplier || !autoExtractForm.amount) return;
+      const invoiceId = `AUTO-INV-${Date.now()}`;
+      appendInvoices([{
+        id: invoiceId,
+        supplier: autoExtractForm.supplier,
+        vendor_code: 'AUTO',
+        poNumber: '',
+        line_number: 1,
+        billed_qty: 1,
+        billed_price: Number(autoExtractForm.amount) || 0,
+        invoiceDate: autoExtractForm.date || new Date().toISOString().split('T')[0],
+        postingDate: new Date().toISOString().split('T')[0],
+        paymentTerm: 'Net 30',
+        amount: Number(autoExtractForm.amount) || 0,
+        purchaseType: 'Services',
+        custInvoiceNo: invoiceId,
+        confidence: 85,
+        popAttached: false,
+        paymentStatus: 'Not yet due',
+        priorityScore: 50,
+        payerName: autoExtractSources.find(s => s.id === autoExtractSource)?.label || 'AUTO-EXTRACTED',
+      }]);
+      setAutoExtractSubmitted(true);
+      setAutoExtractForm({ supplier: '', amount: '', date: '', primarySku: '', shortDescription: '' });
+      setAutoExtractSource(null);
+      setTimeout(() => setAutoExtractSubmitted(false), 3000);
+    };
+
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col font-sans select-none">
+        {/* Header */}
+        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 shadow-xs">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setAppView('workflow')}
+              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900 font-semibold transition-colors cursor-pointer"
+            >
+              <ChevronLeft size={14} />
+              Back to Workflow
+            </button>
+            <div className="w-px h-5 bg-slate-200" />
+            <div className="p-1.5 bg-[#404040] rounded-lg text-white">
+              <UploadCloud size={16} />
+            </div>
+            <div>
+              <span className="font-bold text-slate-800 text-sm block">DOCUMENT INGESTION</span>
+            </div>
+          </div>
+          <span className="text-[10px] text-slate-400 font-mono tracking-widest uppercase">AP INGESTION CONSOLE</span>
+        </header>
+
+        <main className="flex-1 px-8 py-8 max-w-6xl mx-auto w-full">
+          {/* Title */}
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-slate-900">Manual Ingestion (PO, GR, Invoice, Vendor Master)</h1>
+            <p className="text-sm text-slate-500 mt-1">Invoices come from AP as PDF documents (extracted by AI) or as bulk CSV. PO, GR, and vendor data are CSV extracts from SAP.</p>
+          </div>
+
+          {/* Count tiles */}
+          <div className="grid grid-cols-4 gap-4 mb-8">
+            {[
+              { label: 'INVOICES', count: uploadedInvoices.length, sub: 'PDFs (AI extract) + bulk CSV' },
+              { label: 'PURCHASE ORDERS', count: purchaseOrders.length, sub: 'SAP CSV: EKKO + EKPO' },
+              { label: 'GOODS RECEIPTS', count: goodsReceipts.length, sub: 'SAP CSV: MKPF + MSEG' },
+              { label: 'VENDOR MASTER', count: vendors.length, sub: 'SAP CSV: LFA1' },
+            ].map(tile => (
+              <div
+                key={tile.label}
+                className="bg-white border-2 border-slate-200 rounded-xl p-5 shadow-xs"
+              >
+                <span className="text-[10px] text-slate-500 font-semibold tracking-wider block uppercase">{tile.label}</span>
+                <span className="text-3xl font-bold text-slate-900 block mt-1">{tile.count}</span>
+                <span className="text-[11px] text-slate-400 mt-1 block">{tile.sub}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Sub-tabs */}
+          <div className="flex gap-1 mb-6 border-b border-slate-200">
+            <button
+              onClick={() => setIngestionTab('bulk_csv')}
+              className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer rounded-t-lg ${ingestionTab === 'bulk_csv' ? 'border-b-2 border-[#E87722] text-[#E87722] bg-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <Database size={14} />
+              Bulk CSV
+            </button>
+            <button
+              onClick={() => setIngestionTab('auto_extract')}
+              className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-all cursor-pointer rounded-t-lg ${ingestionTab === 'auto_extract' ? 'border-b-2 border-[#E87722] text-[#E87722] bg-white' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <UploadCloud size={14} />
+              Upload PDFs · AI extract
+            </button>
+          </div>
+
+          {/* ── Bulk CSV tab ── */}
+          {ingestionTab === 'bulk_csv' && (
+            <div className="grid grid-cols-1 gap-8">
+              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
+                <UploadPanel
+                  type="invoice"
+                  label="Invoices"
+                  requiredCols={INVOICE_COLS}
+                  onConfirm={rows => appendInvoices(rows.map(coerceInvoice))}
+                />
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
+                <UploadPanel
+                  type="po"
+                  label="Purchase Orders"
+                  requiredCols={PO_COLS}
+                  onConfirm={rows => appendPOs(rows.map(coercePO))}
+                />
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs">
+                <UploadPanel
+                  type="gr"
+                  label="Goods Receipts"
+                  requiredCols={GR_COLS}
+                  onConfirm={rows => appendGRs(rows.map(coerceGR))}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── Auto Extract tab ── */}
+          {ingestionTab === 'auto_extract' && (
+            <div>
+              <div className="mb-4">
+                <h2 className="text-lg font-bold text-slate-900">Auto Extraction (Invoice)</h2>
+                <p className="text-sm text-slate-500 mt-0.5">Select a wholesale supply chain data source and let the AI Agent handle the validation.</p>
+              </div>
+              <div className="grid grid-cols-3 gap-6 h-[460px]">
+                {/* Left: Sources */}
+                <div>
+                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-3">Ingestion Source</span>
+                  <div className="space-y-3">
+                    {autoExtractSources.map(src => (
+                      <button
+                        key={src.id}
+                        onClick={() => setAutoExtractSource(src.id)}
+                        className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${autoExtractSource === src.id ? 'border-[#E87722] bg-orange-50/40' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                      >
+                        <span className={`shrink-0 ${autoExtractSource === src.id ? 'text-[#E87722]' : 'text-slate-400'}`}>{src.icon}</span>
+                        <div>
+                          <span className="font-bold text-sm text-slate-800 block">{src.label}</span>
+                          <span className="text-xs text-slate-500">{src.desc}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Center: Empty / status */}
+                <div className="bg-white border border-slate-200 rounded-xl flex items-center justify-center">
+                  {!autoExtractSource ? (
+                    <div className="text-center px-6">
+                      <div className="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center mx-auto mb-3">
+                        <Database size={22} className="text-slate-400" />
+                      </div>
+                      <p className="text-sm text-slate-400 font-medium">Select a source from the left to begin ingestion</p>
+                    </div>
+                  ) : (
+                    <div className="text-center px-6">
+                      <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center mx-auto mb-3 border border-orange-200">
+                        <span className="h-2.5 w-2.5 rounded-full bg-[#E87722] animate-pulse block"></span>
+                      </div>
+                      <p className="text-sm font-semibold text-slate-700">{autoExtractSources.find(s => s.id === autoExtractSource)?.label}</p>
+                      <p className="text-xs text-slate-400 mt-1">Source connected. Fill in invoice details to submit.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Form */}
+                <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-4">Invoice Details Preview</span>
+                  <div className="space-y-3 flex-1">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Supplier</label>
+                        <input
+                          type="text"
+                          value={autoExtractForm.supplier}
+                          onChange={e => setAutoExtractForm(f => ({ ...f, supplier: e.target.value }))}
+                          placeholder="Supplier name"
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#E87722]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Doc Type</label>
+                        <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2 bg-slate-50">
+                          <FileText size={14} className="text-slate-400" />
+                          <span className="text-sm text-slate-500">N/A</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Amount</label>
+                        <div className="flex items-center border border-slate-200 rounded-lg overflow-hidden">
+                          <span className="px-2 text-sm text-slate-500 bg-slate-50 border-r border-slate-200 py-2">€</span>
+                          <input
+                            type="number"
+                            value={autoExtractForm.amount}
+                            onChange={e => setAutoExtractForm(f => ({ ...f, amount: e.target.value }))}
+                            placeholder="0.00"
+                            className="flex-1 px-3 py-2 text-sm text-slate-700 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Date</label>
+                        <input
+                          type="date"
+                          value={autoExtractForm.date}
+                          onChange={e => setAutoExtractForm(f => ({ ...f, date: e.target.value }))}
+                          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:border-[#E87722]"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Primary SKU</label>
+                      <input
+                        type="text"
+                        value={autoExtractForm.primarySku}
+                        onChange={e => setAutoExtractForm(f => ({ ...f, primarySku: e.target.value }))}
+                        placeholder="e.g. SK-992"
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#E87722]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block mb-1">Short Description</label>
+                      <textarea
+                        value={autoExtractForm.shortDescription}
+                        onChange={e => setAutoExtractForm(f => ({ ...f, shortDescription: e.target.value }))}
+                        placeholder="Brief summary..."
+                        rows={3}
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#E87722] resize-none"
+                      />
+                    </div>
+                  </div>
+                  {autoExtractSubmitted ? (
+                    <div className="mt-3 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-700 font-semibold text-center flex items-center justify-center gap-1.5">
+                      <Check size={13} />
+                      Invoice added to payables queue
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleAutoExtractSubmit}
+                      disabled={!autoExtractForm.supplier || !autoExtractForm.amount}
+                      className="mt-3 w-full py-2.5 rounded-lg bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-semibold transition-all cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      Submit for Validation
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Reset */}
+          <div className="mt-8 flex justify-end">
+            <button
+              onClick={() => { resetToSeed(); }}
+              className="text-xs text-slate-400 hover:text-slate-600 underline cursor-pointer transition-colors"
+            >
+              Reset all to seed data
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   // ── Workflow View ──────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-700 flex flex-col font-sans select-none overflow-x-hidden">
@@ -903,7 +1192,7 @@ Dear Quantum billing, our automated 3-way check detected that only 7 units of Co
         {/* Global stats and trigger */}
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => setShowUploadModal(true)}
+            onClick={() => { setIngestionTab('bulk_csv'); setAppView('ingestion'); }}
             id="global-upload-btn"
             className="bg-white border border-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg text-slate-700 hover:bg-slate-50 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
@@ -1001,7 +1290,7 @@ Dear Quantum billing, our automated 3-way check detected that only 7 units of Co
                     </div>
                     <div className="flex items-center gap-2 pr-4">
                       <button
-                        onClick={() => setShowUploadModal(true)}
+                        onClick={() => { setIngestionTab('bulk_csv'); setAppView('ingestion'); }}
                         className="bg-[#E87722] hover:bg-[#c05a00] text-white font-bold text-xs px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-xs border-0"
                       >
                         <UploadCloud size={13} />
@@ -2226,11 +2515,6 @@ Dear Quantum billing, our automated 3-way check detected that only 7 units of Co
         </div>
       )}
 
-      {/* ======================================= */}
-      {/* INGESTION SIMULATOR MULTIPLEX MODAL     */}
-      {/* ======================================= */}
-      {/* Real CSV upload drawer (replaces old simulated modal) */}
-      <UploadDrawer open={showUploadModal} onClose={() => setShowUploadModal(false)} />
 
     </div>
   );

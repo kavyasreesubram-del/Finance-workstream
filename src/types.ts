@@ -161,6 +161,7 @@ export interface UploadedInvoice {
   disputeReason?: string;
   paymentStatus: 'Overdue' | 'Not yet due';
   priorityScore: number;
+  payerName?: string;
 }
 
 export interface MatchResult {

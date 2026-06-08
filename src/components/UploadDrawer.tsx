@@ -5,18 +5,18 @@ import { useStore } from '../store';
 
 // ── Required columns per document type ───────────────────────────
 
-const INVOICE_COLS = [
+export const INVOICE_COLS = [
   'id','supplier','vendor_code','poNumber','line_number',
   'billed_qty','billed_price','invoiceDate','postingDate',
   'paymentTerm','amount','purchaseType','custInvoiceNo',
   'confidence','popAttached','paymentStatus','priorityScore',
 ];
-const PO_COLS = [
+export const PO_COLS = [
   'id','po_number','line_number','vendor_code','sku',
   'description','unit_price','quantity','tolerance_pct',
   'currency','po_date',
 ];
-const GR_COLS = [
+export const GR_COLS = [
   'id','gr_number','po_number','line_number','received_qty','received_date',
 ];
 
@@ -45,7 +45,7 @@ function validateCols(rows: Record<string, string>[], required: string[]): strin
   return required.filter(c => !present.has(c));
 }
 
-function coerceInvoice(r: Record<string, string>): UploadedInvoice {
+export function coerceInvoice(r: Record<string, string>): UploadedInvoice {
   return {
     id: r.id,
     supplier: r.supplier,
@@ -68,7 +68,7 @@ function coerceInvoice(r: Record<string, string>): UploadedInvoice {
   };
 }
 
-function coercePO(r: Record<string, string>): PurchaseOrder {
+export function coercePO(r: Record<string, string>): PurchaseOrder {
   return {
     id: r.id,
     po_number: r.po_number,
@@ -84,7 +84,7 @@ function coercePO(r: Record<string, string>): PurchaseOrder {
   };
 }
 
-function coerceGR(r: Record<string, string>): GoodsReceipt {
+export function coerceGR(r: Record<string, string>): GoodsReceipt {
   return {
     id: r.id,
     gr_number: r.gr_number,
@@ -121,7 +121,7 @@ interface UploadPanelProps {
   onConfirm: (rows: Record<string, string>[]) => void;
 }
 
-const UploadPanel: React.FC<UploadPanelProps> = ({ type, label, requiredCols, onConfirm }) => {
+export const UploadPanel: React.FC<UploadPanelProps> = ({ type, label, requiredCols, onConfirm }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<ParseState | null>(null);
   const [done, setDone] = useState(false);
